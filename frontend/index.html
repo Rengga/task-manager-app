@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task Manager</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+      body {
+        background-color: #f3f4f6;
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      .navbar-custom {
+        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+      }
+      .card-custom {
+        border: none;
+        border-radius: 16px;
+        background: #ffffff;
+        transition: all 0.25s ease;
+      }
+      .card-custom:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05) !important;
+      }
+      .log-card {
+        border: none;
+        border-radius: 12px;
+        background: #ffffff;
+        border-left: 4px solid #3b82f6;
+      }
+      .btn-icon {
+        border-radius: 10px;
+        padding: 6px 12px;
+      }
+      .badge-custom {
+        padding: 6px 12px;
+        border-radius: 30px;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: capitalize;
+      }
+    </style>
+  </head>
+  <body>
+    <nav
+      class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm mb-5"
+    >
+      <div class="container py-1">
+        <a
+          class="navbar-brand fw-bold d-flex align-items-center gap-2"
+          href="#"
+        >
+          <i class="bi bi-grid-1x2-fill fs-4"></i>
+          <span>TaskFlow</span>
+        </a>
+        <button
+          onclick="logout()"
+          class="btn btn-light btn-sm fw-bold px-3 py-2 rounded-3 text-primary shadow-sm d-flex align-items-center gap-2"
+        >
+          <i class="bi bi-box-arrow-right"></i> Keluar
+        </button>
+      </div>
+    </nav>
+
+    <div class="container mb-5">
+      <div class="row g-4">
+        <div class="col-lg-8">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h3 class="fw-bold text-dark m-0">Tugas Anda</h3>
+              <p class="text-muted small m-0">
+                Kelola dan pantau seluruh aktivitas proyek
+              </p>
+            </div>
+            <a
+              href="create-task.html"
+              class="btn btn-primary fw-bold px-4 py-2 rounded-3 shadow-sm d-flex align-items-center gap-2"
+            >
+              <i class="bi bi-plus-lg"></i> Tambah Tugas
+            </a>
+          </div>
+          <div id="tasks" class="row row-cols-1 row-cols-md-2 g-4"></div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="mb-4">
+            <h3 class="fw-bold text-dark m-0">Aktivitas Terbaru</h3>
+            <p class="text-muted small m-0">Log jejak perubahan sistem</p>
+          </div>
+          <div id="logs" class="d-flex flex-column gap-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API = "http://localhost:3000/api";
+      const token = localStorage.getItem("token");
+
+      if (!token || token === "undefined") {
+        localStorage.removeItem("token");
+        window.location.href = "login.html";
+      }
+
+      function formatTimeAgo(dateString) {
+        const now = new Date();
+        const past = new Date(dateString);
+        const diffInMs = now - past;
+
+        const diffInMins = Math.floor(diffInMs / 60000);
+        const diffInHours = Math.floor(diffInMins / 60);
+        const diffInDays = Math.floor(diffInHours / 24);
+
+        if (diffInMins < 1) return "Baru saja";
+        if (diffInMins < 60) return `${diffInMins} mnt yang lalu`;
+        if (diffInHours < 24) return `${diffInHours} jam yang lalu`;
+        if (diffInDays === 1) return "Kemarin";
+
+        return past.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+        });
+      }
+
+      async function getTasks() {
+        const response = await fetch(`${API}/tasks`, {
+          headers: {
+            authorization: token,
+          },
+        });
+        const tasks = await response.json();
+        let html = "";
+
+        tasks.forEach((task) => {
+          // Default styling (jika status adalah Todo / todo)
+          let badgeClass = "bg-secondary-subtle text-secondary";
+          let iconStatus = "bi-clock";
+          let displayStatus = task.status;
+
+          // Pengecekan kondisi status dinamis (Bahasa Inggris / Indonesia)
+          if (task.status === "done" || task.status === "Selesai") {
+            badgeClass = "bg-success-subtle text-success";
+            iconStatus = "bi-check-circle-fill";
+            displayStatus = "Done";
+          } else if (
+            task.status === "progress" ||
+            task.status === "Proses" ||
+            task.status === "In Progress"
+          ) {
+            badgeClass = "bg-warning-subtle text-warning-emphasis";
+            iconStatus = "bi-play-circle-fill";
+            displayStatus = "In Progress";
+          } else if (task.status === "todo" || task.status === "Todo") {
+            badgeClass = "bg-info-subtle text-info-emphasis";
+            iconStatus = "bi-list-task";
+            displayStatus = "Todo";
+          }
+
+          const formattedDate = new Date(task.due_date).toLocaleDateString(
+            "id-ID",
+            {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            },
+          );
+
+          html += `
+            <div class="col">
+              <div class="card h-100 shadow-sm card-custom p-2">
+                <div class="card-body d-flex flex-column">
+                  <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h5 class="card-title fw-bold text-dark m-0 text-truncate" style="max-width: 60%;">${task.title}</h5>
+                    <span class="badge badge-custom ${badgeClass} d-flex align-items-center gap-1">
+                      <i class="bi ${iconStatus}"></i> ${displayStatus}
+                    </span>
+                  </div>
+                  
+                  <div class="bg-light rounded-3 p-3 mb-4 mt-2">
+                    <div class="d-flex align-items-center gap-2 text-secondary small">
+                      <i class="bi bi-calendar3 text-primary"></i>
+                      <span><strong>Batas Waktu:</strong> ${formattedDate}</span>
+                    </div>
+                  </div>
+
+                  <div class="mt-auto d-flex gap-2 justify-content-end">
+                    <a href="detail-task.html?id=${task.id}" class="btn btn-light text-primary btn-icon btn-sm fw-bold shadow-sm flex-fill" title="Detail">
+                      <i class="bi bi-eye"></i> Detail
+                    </a>
+                    <a href="edit-task.html?id=${task.id}" class="btn btn-light text-warning btn-icon btn-sm fw-bold shadow-sm flex-fill" title="Edit">
+                      <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <button onclick="deleteTask(${task.id})" class="btn btn-light text-danger btn-icon btn-sm fw-bold shadow-sm flex-fill" title="Hapus">
+                      <i class="bi bi-trash"></i> Hapus
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        document.getElementById("tasks").innerHTML =
+          html ||
+          `
+          <div class="col-12 text-center py-5">
+            <i class="bi bi-folder-x text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted fw-medium mt-2">Belum ada tugas terdaftar.</p>
+          </div>
+        `;
+      }
+
+      async function deleteTask(id) {
+        if (confirm("Apakah Anda yakin ingin menghapus tugas ini?")) {
+          await fetch(`${API}/tasks/${id}`, {
+            method: "DELETE",
+            headers: {
+              authorization: token,
+            },
+          });
+          getTasks();
+          getLogs();
+        }
+      }
+
+      async function getLogs() {
+        const response = await fetch(`${API}/logs`, {
+          headers: {
+            authorization: token,
+          },
+        });
+        const logs = await response.json();
+        let html = "";
+
+        logs.forEach((log) => {
+          const relativeTime = formatTimeAgo(log.created_at);
+
+          html += `
+            <div class="card shadow-sm p-3 log-card">
+              <div class="d-flex align-items-start gap-3">
+                <div class="bg-primary-subtle text-primary rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 35px; height: 35px;">
+                  <i class="bi bi-lightning-charge-fill small"></i>
+                </div>
+                <div class="flex-grow-1">
+                  <p class="mb-1 text-dark fw-medium small">${log.activity}</p>
+                  <div class="d-flex align-items-center gap-1 text-muted" style="font-size: 0.75rem;">
+                    <i class="bi bi-clock-history"></i>
+                    <span>${relativeTime}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        document.getElementById("logs").innerHTML =
+          html ||
+          `
+          <div class="text-center py-4 bg-white rounded-4 shadow-sm border border-light-subtle">
+            <i class="bi bi-activity text-muted" style="font-size: 2rem;"></i>
+            <p class="text-muted small m-0 mt-1">Belum ada riwayat aktivitas.</p>
+          </div>
+        `;
+      }
+
+      function logout() {
+        localStorage.removeItem("token");
+        window.location.href = "login.html";
+      }
+
+      getTasks();
+      getLogs();
+    </script>
+  </body>
+</html>
